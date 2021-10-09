@@ -52,7 +52,11 @@ impl Account {
 
     fn withdraw(&mut self, amount: Amount) -> Result<(), TransactionError> {
         if self.available < amount {
-            return Err(TransactionError::InsufficientFunds);
+            return Err(TransactionError::InsufficientFunds {
+                client: self.client,
+                available: self.available,
+                amount_attempted: amount,
+            });
         }
         self.available -= amount;
         self.total -= amount;

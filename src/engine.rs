@@ -32,8 +32,6 @@ impl PaymentEngine {
     /// };
     /// assert!(engine.insert(tx).is_ok());
     /// ```
-    // TODO: README
-    // TODO: read through paper again
     pub fn insert(&mut self, tx: Transaction) -> Result<(), TransactionError> {
         let account = self
             .accounts
@@ -201,7 +199,11 @@ mod tests {
         };
         assert_eq!(
             engine.insert(withdrawal).unwrap_err(),
-            TransactionError::InsufficientFunds
+            TransactionError::InsufficientFunds {
+                client,
+                available: Amount::new(22, 1).unwrap(),
+                amount_attempted: Amount::new(23, 1).unwrap()
+            }
         );
     }
 

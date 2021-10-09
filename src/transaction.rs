@@ -20,9 +20,7 @@ pub enum TransactionVariant {
 // amount = `Some(5.0)` which is illegal.
 //
 // It would be better if we could deserialize to something like:
-// #[derive(Debug, Deserialize)]
-// #[serde(untagged)]
-// pub enum RowInput {
+// enum RowInput {
 //     Transaction(Transaction),
 //     DisputeOperation(DisputeOp),
 // }

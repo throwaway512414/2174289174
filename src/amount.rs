@@ -1,5 +1,6 @@
 use std::{
     convert::TryFrom,
+    fmt::Display,
     ops::{AddAssign, SubAssign},
 };
 
@@ -10,19 +11,29 @@ use serde::{de, Deserialize, Deserializer, Serialize};
 /// - The scale is no more than 4
 /// - The value is nonnegative when created
 ///
-/// # Note 1
+/// As money amounts are specified in decimal it is necesarry to use a type that
+/// can handle that. For example using `f32` cannot accurately represent decimals
+/// and would therefore lead to rounding errors.
+///
+/// # Note
 ///
 /// This type only guarantees that the [`Amount`] is nonnegative when deserialized.
 /// This ensures that someone can not try to withdraw a negative amount for example.
 /// It is not clear from the requirements wether the fields of [`Account`] (`total`, `fund`, etc)
 /// can be negative or should always be nonnegative.
 ///
-/// # Note 2
+/// # Panics
 ///
 /// The user of [`Amount`] must ensure that any mutable operation does not
 /// make the resulting value overflow, because then it will panic.
 #[derive(Debug, Serialize, Clone, Copy)]
 pub struct Amount(Decimal);
+
+impl Display for Amount {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl Amount {
     pub fn new(num: i64, scale: u32) -> Result<Self, String> {

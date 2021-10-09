@@ -1,0 +1,4 @@
+/target
+
+# Test fixtures run output
+*_test_output.csv

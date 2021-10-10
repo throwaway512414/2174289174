@@ -43,6 +43,10 @@ impl Amount {
     pub fn zero() -> Self {
         Self(Decimal::zero())
     }
+
+    pub fn is_sign_negative(&self) -> bool {
+        self.0.is_sign_negative()
+    }
 }
 
 impl TryFrom<Decimal> for Amount {

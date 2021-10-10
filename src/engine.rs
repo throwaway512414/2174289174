@@ -29,6 +29,7 @@ impl PaymentEngine {
     ///    client: 1,
     ///    disputed: false,
     ///    variant: TransactionVariant::Deposit,
+    ///    chargeback: false,
     /// };
     /// assert!(engine.insert(tx).is_ok());
     /// ```
@@ -54,26 +55,24 @@ impl PaymentEngine {
                 self.transactions.insert(tx.tx, tx);
             }
             TransactionVariant::Dispute => {
-                let disputed_tx = self
+                let tx_to_dispute = self
                     .transactions
                     .get_mut(&tx.tx)
                     .ok_or(TransactionError::TransactionNotFound)?;
 
-                if disputed_tx.client != tx.client {
+                if tx_to_dispute.client != tx.client {
                     return Err(TransactionError::TransactionNotFound);
                 }
 
-                if disputed_tx.disputed {
-                    return Err(TransactionError::AlreadyDisputed);
-                }
+                tx_to_dispute.can_dispute()?;
 
                 // SAFETY: We knnow that `disputed_tx` has `variant` with value
                 // `TransactionVariant::Deposit` or `TransactionVariant::Withdrawal`.
                 // This means that `amount` is Some.
-                let disputed_amount = disputed_tx.amount.unwrap();
+                let disputed_amount = tx_to_dispute.amount.unwrap();
 
                 account.transaction(&tx.variant, disputed_amount)?;
-                disputed_tx.disputed = true;
+                tx_to_dispute.disputed = true;
             }
             TransactionVariant::Resolve | TransactionVariant::Chargeback => {
                 let disputed_tx = self
@@ -85,9 +84,7 @@ impl PaymentEngine {
                     return Err(TransactionError::TransactionNotFound);
                 }
 
-                if !disputed_tx.disputed {
-                    return Err(TransactionError::NotDisputed);
-                }
+                disputed_tx.can_resolve_or_chargeback()?;
 
                 // SAFETY: We knnow that `disputed_tx` has `variant` with value
                 // `TransactionVariant::Deposit` or `TransactionVariant::Withdrawal`.
@@ -96,6 +93,12 @@ impl PaymentEngine {
 
                 account.transaction(&tx.variant, disputed_amount)?;
                 disputed_tx.disputed = false;
+
+                // In case of chargeback we also want to mark the disputed transaction as
+                // a "chargedback" transaction
+                if tx.variant == TransactionVariant::Chargeback {
+                    disputed_tx.chargeback = true;
+                }
             }
         }
 
@@ -124,6 +127,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert!(engine.insert(deposit).is_ok());
         assert_eq!(engine.accounts.len(), 1);
@@ -151,6 +155,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert!(engine.insert(deposit).is_ok());
 
@@ -160,6 +165,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Withdrawal,
+            chargeback: false,
         };
         assert!(engine.insert(withdrawal).is_ok());
 
@@ -184,6 +190,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert!(engine.insert(deposit).is_ok());
 
@@ -196,6 +203,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Withdrawal,
+            chargeback: false,
         };
         assert_eq!(
             engine.insert(withdrawal).unwrap_err(),
@@ -219,6 +227,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert!(engine.insert(deposit).is_ok());
         let deposit = Transaction {
@@ -228,6 +237,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert_eq!(
             engine.insert(deposit).unwrap_err(),
@@ -248,6 +258,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert!(engine.insert(deposit).is_ok());
 
@@ -257,6 +268,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Dispute,
+            chargeback: false,
         };
         assert!(engine.insert(dispute).is_ok());
         let chargeback = Transaction {
@@ -265,6 +277,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Chargeback,
+            chargeback: false,
         };
         assert!(engine.insert(chargeback).is_ok());
         let account_after_chargeback = engine.accounts.get(&client).unwrap();
@@ -290,6 +303,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert!(engine.insert(deposit).is_ok());
 
@@ -303,6 +317,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Dispute,
+            chargeback: false,
         };
         assert!(engine.insert(dispute).is_ok());
         let chargeback = Transaction {
@@ -311,6 +326,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Resolve,
+            chargeback: false,
         };
         assert!(engine.insert(chargeback).is_ok());
         let account_after_resolve = engine.accounts.get(&client).unwrap();
@@ -342,6 +358,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert!(engine.insert(deposit).is_ok());
 
@@ -351,6 +368,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Dispute,
+            chargeback: false,
         };
         assert!(engine.insert(dispute).is_ok());
 
@@ -361,6 +379,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Dispute,
+            chargeback: false,
         };
         assert!(engine.insert(dispute).is_err());
     }
@@ -379,6 +398,7 @@ mod tests {
             client,
             disputed: false,
             variant: TransactionVariant::Deposit,
+            chargeback: false,
         };
         assert!(engine.insert(deposit).is_ok());
 
@@ -389,6 +409,7 @@ mod tests {
             client: mallicous_client,
             disputed: false,
             variant: TransactionVariant::Dispute,
+            chargeback: false,
         };
         assert!(engine.insert(dispute).is_err());
     }

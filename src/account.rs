@@ -88,6 +88,10 @@ impl Account {
             return Err(TransactionError::LockedAccount);
         }
 
+        if amount.is_sign_negative() {
+            return Err(TransactionError::NegativeAmount);
+        }
+
         match variant {
             TransactionVariant::Deposit => {
                 self.deposit(amount);
@@ -140,5 +144,21 @@ mod tests {
         let res = account.transaction(&TransactionVariant::Withdrawal, Amount::new(10, 1).unwrap());
         assert!(res.is_err());
         assert_eq!(res.unwrap_err(), TransactionError::LockedAccount);
+    }
+
+    #[test]
+    fn reject_negative_amount_in_transaction() {
+        let mut account = Account {
+            client: 1,
+            available: Amount::new(10, 1).unwrap(),
+            total: Amount::new(10, 1).unwrap(),
+            held: Amount::zero(),
+            locked: false,
+        };
+        let mut amount = Amount::zero();
+        amount -= Amount::new(1, 0).unwrap();
+        let res = account.transaction(&TransactionVariant::Withdrawal, amount);
+        assert!(res.is_err());
+        assert_eq!(res.unwrap_err(), TransactionError::NegativeAmount);
     }
 }
